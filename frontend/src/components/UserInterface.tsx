@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { AiFillDelete, AiOutlinePlus, AiOutlineEdit } from 'react-icons/ai'; // Icons for actions
 import CardComponent from './CardComponent';
 
 interface User {
@@ -10,129 +9,174 @@ interface User {
 }
 
 interface UserInterfaceProps {
-  backendName: string;
+  backendName: string; // e.g., "go"
 }
 
 const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://66dbf2c96722fdb9097e9de1_lb_705.bm-south.lab.poridhi.io';
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://66dbf2c96722fdb9097e9de1_lb_705.bm-south.lab.poridhi.io/';   
   const [users, setUsers] = useState<User[]>([]);
   const [newUser, setNewUser] = useState({ name: '', email: '' });
   const [updateUser, setUpdateUser] = useState({ id: '', name: '', email: '' });
+  const [errorMessage, setErrorMessage] = useState('');
 
-  // Define styles based on backend name
-  const bgColor = backendName === 'go' ? 'bg-gradient-to-r from-cyan-500 to-blue-500' : 'bg-gray-200';
-  const btnColor = backendName === 'go' ? 'bg-cyan-600 hover:bg-blue-600' : 'bg-gray-500 hover:bg-gray-600';
+  // Define styles based on the backend name
+  const backgroundColors: { [key: string]: string } = {
+    go: 'bg-cyan-500',
+  };
 
-  // Fetch users
+  const buttonColors: { [key: string]: string } = {
+    go: 'bg-cyan-700 hover:bg-blue-600',
+  };
+
+  const bgColor = backgroundColors[backendName as keyof typeof backgroundColors] || 'bg-gray-200';
+  const btnColor = buttonColors[backendName as keyof typeof buttonColors] || 'bg-gray-500 hover:bg-gray-600';
+
+  // Fetch all users and sort them by ID
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await axios.get(`${apiUrl}/api/${backendName}/users`);
-        setUsers(response.data.reverse());
+        const sortedUsers = response.data.sort((a: User, b: User) => a.id - b.id);
+        setUsers(sortedUsers.reverse());
+        console.log("Users fetched:", sortedUsers); // Check the structure here
       } catch (error) {
+        setErrorMessage('Error fetching data. Please check the console.');
         console.error('Error fetching data:', error);
       }
     };
+  
     fetchData();
   }, [backendName, apiUrl]);
+/*   useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const response = await axios.get(`${apiUrl}/api/${backendName}/users`);
+        const sortedUsers = response.data.sort((a: User, b: User) => a.id - b.id);
+        setUsers(sortedUsers.reverse()); // Reverse if you want the latest users first
+      } catch (error) {
+        setErrorMessage('Error fetching data. Please check the console.');
+        console.error('Error fetching data:', error);
+      }
+    };
 
-  // Create user
+    fetchData();
+  }, [backendName, apiUrl]); */
+
+  // Create a new user
   const createUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       const response = await axios.post(`${apiUrl}/api/${backendName}/users`, newUser);
-      setUsers([response.data, ...users]);
+      const updatedUsers = [response.data, ...users].sort((a: User, b: User) => a.id - b.id); // Re-sort after adding
+      setUsers(updatedUsers);
       setNewUser({ name: '', email: '' });
     } catch (error) {
+      setErrorMessage('Error creating user. Please check the console.');
       console.error('Error creating user:', error);
     }
   };
 
-  // Update user
+  // Update a user
   const handleUpdateUser = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      await axios.put(`${apiUrl}/api/${backendName}/users/${updateUser.id}`, updateUser);
+      await axios.put(`${apiUrl}/api/${backendName}/users/${updateUser.id}`, { name: updateUser.name, email: updateUser.email });
+      const updatedUsers = users.map((user) => {
+        if (user.id === parseInt(updateUser.id)) {
+          return { ...user, name: updateUser.name, email: updateUser.email };
+        }
+        return user;
+      }).sort((a: User, b: User) => a.id - b.id); // Re-sort after updating
+      setUsers(updatedUsers);
       setUpdateUser({ id: '', name: '', email: '' });
-      setUsers(users.map((user) => (user.id === parseInt(updateUser.id) ? { ...user, ...updateUser, id: user.id } : user)));
-//setUsers(users.map((user) => (user.id === parseInt(updateUser.id) ? updateUser : user)));
     } catch (error) {
+      setErrorMessage('Error updating user. Please check the console.');
       console.error('Error updating user:', error);
     }
   };
 
-  // Delete user
+  // Delete a user
   const deleteUser = async (userId: number) => {
     try {
+      console.log("Attempting to delete user with ID:", userId); // Log userId
       await axios.delete(`${apiUrl}/api/${backendName}/users/${userId}`);
-      setUsers(users.filter((user) => user.id !== userId));
+      const updatedUsers = users.filter((user) => user.id !== userId).sort((a: User, b: User) => a.id - b.id);
+      setUsers(updatedUsers);
+      console.log("User deleted. Updated users list:", updatedUsers); // Confirm deletion
     } catch (error) {
+      setErrorMessage('Error deleting user. Please check the console.');
       console.error('Error deleting user:', error);
     }
   };
+/*   const deleteUser = async (userId: number) => {
+    try {
+      await axios.delete(`${apiUrl}/api/${backendName}/users/${userId}`);
+      const updatedUsers = users.filter((user) => user.id !== userId).sort((a: User, b: User) => a.id - b.id); // Re-sort after deleting
+      setUsers(updatedUsers);
+    } catch (error) {
+      setErrorMessage('Error deleting user. Please check the console.');
+      console.error('Error deleting user:', error);
+    }
+  }; */
 
   return (
-    <div className={`user-interface ${bgColor} w-full max-w-md p-6 rounded-lg shadow-lg`}>
-      <img src={`/${backendName}logo.svg`} alt={`${backendName} Logo`} className="w-16 h-16 mb-6 mx-auto" />
-      <h2 className="text-2xl font-bold text-center text-white mb-6">{`${backendName.charAt(0).toUpperCase() + backendName.slice(1)} Backend`}</h2>
+    <div className={`user-interface ${bgColor} ${backendName} w-full max-w-md p-4 my-4 rounded shadow`}>
+      <img src={`/${backendName}logo.svg`} alt={`${backendName} Logo`} className="w-20 h-20 mb-6 mx-auto" />
+      <h2 className="text-xl font-bold text-center text-white mb-6">{`${backendName.charAt(0).toUpperCase() + backendName.slice(1)} Backend`}</h2>
 
-      {/* Add user form */}
-      <form onSubmit={createUser} className="mb-6 p-4 bg-white rounded-lg shadow">
-        <h3 className="text-lg font-semibold mb-2 text-gray-800">Add New User</h3>
-        <div className="space-y-2">
-          <input
-            placeholder="Name"
-            value={newUser.name}
-            onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-            className="w-full p-2 border rounded focus:border-blue-400"
-          />
-          <input
-            placeholder="Email"
-            value={newUser.email}
-            onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-            className="w-full p-2 border rounded focus:border-blue-400"
-          />
-          <button type="submit" className={`w-full p-2 mt-2 text-white rounded ${btnColor} hover:shadow-lg`}>
-            <AiOutlinePlus className="inline mr-2" /> Add User
-          </button>
-        </div>
+      {errorMessage && <p className="text-red-500">{errorMessage}</p>}
+
+      {/* Create user */}
+      <form onSubmit={createUser} className="mb-6 p-4 bg-blue-100 rounded shadow">
+        <input
+          placeholder="Name"
+          value={newUser.name}
+          onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
+          className="mb-2 w-full p-2 border border-gray-300 rounded"
+        />
+        <input
+          placeholder="Email"
+          value={newUser.email}
+          onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
+          className="mb-2 w-full p-2 border border-gray-300 rounded"
+        />
+        <button type="submit" className="w-full p-2 text-white bg-blue-500 rounded hover:bg-blue-600">
+          Add User
+        </button>
       </form>
 
-      {/* Update user form */}
-      <form onSubmit={handleUpdateUser} className="mb-6 p-4 bg-white rounded-lg shadow">
-        <h3 className="text-lg font-semibold mb-2 text-gray-800">Update User</h3>
-        <div className="space-y-2">
-          <input
-            placeholder="User ID"
-            value={updateUser.id}
-            onChange={(e) => setUpdateUser({ ...updateUser, id: e.target.value })}
-            className="w-full p-2 border rounded focus:border-blue-400"
-          />
-          <input
-            placeholder="New Name"
-            value={updateUser.name}
-            onChange={(e) => setUpdateUser({ ...updateUser, name: e.target.value })}
-            className="w-full p-2 border rounded focus:border-blue-400"
-          />
-          <input
-            placeholder="New Email"
-            value={updateUser.email}
-            onChange={(e) => setUpdateUser({ ...updateUser, email: e.target.value })}
-            className="w-full p-2 border rounded focus:border-blue-400"
-          />
-          <button type="submit" className="w-full p-2 mt-2 text-white bg-green-500 hover:bg-green-600 rounded hover:shadow-lg">
-            <AiOutlineEdit className="inline mr-2" /> Update User
-          </button>
-        </div>
+      {/* Update user */}
+      <form onSubmit={handleUpdateUser} className="mb-6 p-4 bg-blue-100 rounded shadow">
+        <input
+          placeholder="User Id"
+          value={updateUser.id}
+          onChange={(e) => setUpdateUser({ ...updateUser, id: e.target.value })}
+          className="mb-2 w-full p-2 border border-gray-300 rounded"
+        />
+        <input
+          placeholder="New Name"
+          value={updateUser.name}
+          onChange={(e) => setUpdateUser({ ...updateUser, name: e.target.value })}
+          className="mb-2 w-full p-2 border border-gray-300 rounded"
+        />
+        <input
+          placeholder="New Email"
+          value={updateUser.email}
+          onChange={(e) => setUpdateUser({ ...updateUser, email: e.target.value })}
+          className="mb-2 w-full p-2 border border-gray-300 rounded"
+        />
+        <button type="submit" className="w-full p-2 text-white bg-green-500 rounded hover:bg-green-600">
+          Update User
+        </button>
       </form>
 
-      {/* User list */}
+      {/* Display users */}
       <div className="space-y-4">
         {users.map((user) => (
-          <div key={user.id} className="flex items-center justify-between bg-white p-4 rounded-lg shadow hover:shadow-md">
+          <div key={user.id} className="flex items-center justify-between bg-white p-4 rounded-lg shadow">
             <CardComponent card={user} />
-            <button onClick={() => deleteUser(user.id)} className="text-white bg-red-500 hover:bg-red-600 py-2 px-3 rounded-full">
-              <AiFillDelete />
+            <button onClick={() => deleteUser(user.id)} className={`${btnColor} text-white py-2 px-4 rounded`}>
+              Delete User
             </button>
           </div>
         ))}
@@ -142,322 +186,6 @@ const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
 };
 
 export default UserInterface;
-
-// import React, { useState, useEffect } from 'react';
-// import axios from 'axios';
-// import CardComponent from './CardComponent';
-
-// // Define the structure of the User data
-// interface User {
-//   id: number;
-//   name: string;
-//   email: string;
-// }
-
-// // Define props for the component
-// interface UserInterfaceProps {
-//   backendName: string; // Backend name, e.g., 'go'
-// }
-
-// // Main component to display, create, update, and delete users
-// const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
-//   // Set API URL with a default if environment variable is not provided
-//   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://66dbf2c96722fdb9097e9de1_lb_705.bm-south.lab.poridhi.io';
-
-//   // State variables to manage user data, new user form, update user form, and error messages
-//   const [users, setUsers] = useState<User[]>([]);
-//   const [newUser, setNewUser] = useState({ name: '', email: '' });
-//   const [updateUser, setUpdateUser] = useState({ id: '', name: '', email: '' });
-//   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-//   // Fetch all users when component mounts or `backendName` changes
-//   useEffect(() => {
-//     const fetchData = async () => {
-//       try {
-//         const response = await axios.get(`${apiUrl}/api/${backendName}/users`);
-//         setUsers(response.data.reverse()); // Reverse to show newest users first
-//       } catch (error) {
-//         setErrorMessage('Error fetching data. Please check the console.');
-//         console.error('Error fetching data:', error);
-//       }
-//     };
-
-//     fetchData();
-//   }, [backendName, apiUrl]);
-
-//   // Function to create a new user
-//   const createUser = async (e: React.FormEvent<HTMLFormElement>) => {
-//     e.preventDefault(); // Prevent default form submission
-//     setErrorMessage(null); // Reset error message
-
-//     try {
-//       const response = await axios.post(`${apiUrl}/api/${backendName}/users`, newUser);
-//       setUsers([response.data, ...users]); // Add new user to the top of the list
-//       setNewUser({ name: '', email: '' }); // Reset form fields
-//     } catch (error) {
-//       setErrorMessage('Error creating user. Please check the console.');
-//       console.error('Error creating user:', error);
-//     }
-//   };
-
-//   // Function to update an existing user
-//   const handleUpdateUser = async (e: React.FormEvent<HTMLFormElement>) => {
-//     e.preventDefault(); // Prevent default form submission
-//     setErrorMessage(null); // Reset error message
-
-//     try {
-//       // Send PUT request to update user data
-//       await axios.put(`${apiUrl}/api/${backendName}/users/${updateUser.id}`, {
-//         name: updateUser.name,
-//         email: updateUser.email,
-//       });
-//       setUpdateUser({ id: '', name: '', email: '' }); // Reset form fields after update
-//       setUsers(
-//         users.map((user) => 
-//           user.id === parseInt(updateUser.id) ? { ...user, name: updateUser.name, email: updateUser.email } : user
-//         )
-//       );
-//     } catch (error) {
-//       setErrorMessage('Error updating user. Please check the console.');
-//       console.error('Error updating user:', error);
-//     }
-//   };
-
-//   // Function to delete a user by their ID
-//   const deleteUser = async (userId: number) => {
-//     setErrorMessage(null); // Reset error message
-
-//     try {
-//       await axios.delete(`${apiUrl}/api/${backendName}/users/${userId}`);
-//       setUsers(users.filter((user) => user.id !== userId)); // Remove deleted user from the list
-//     } catch (error) {
-//       setErrorMessage('Error deleting user. Please check the console.');
-//       console.error('Error deleting user:', error);
-//     }
-//   };
-
-//   return (
-//     <div className={`user-interface w-full max-w-md p-4 my-4 rounded shadow`}>
-//       {/* Display an error message if any */}
-//       {errorMessage && <p className="text-red-500">{errorMessage}</p>}
-
-//       {/* Form to add a new user */}
-//       <form onSubmit={createUser} className="mb-6 p-4 bg-blue-100 rounded shadow">
-//         <input
-//           placeholder="Name"
-//           value={newUser.name}
-//           onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-//           className="mb-2 w-full p-2 border border-gray-300 rounded"
-//         />
-//         <input
-//           placeholder="Email"
-//           value={newUser.email}
-//           onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-//           className="mb-2 w-full p-2 border border-gray-300 rounded"
-//         />
-//         <button type="submit" className="w-full p-2 text-white bg-blue-500 rounded hover:bg-blue-600">
-//           Add User
-//         </button>
-//       </form>
-
-//       {/* Display list of users with options to delete */}
-//       <div className="space-y-4">
-//         {users.map((user) => (
-//           <div key={user.id} className="flex items-center justify-between bg-white p-4 rounded-lg shadow">
-//             <CardComponent card={user} />
-//             <button onClick={() => deleteUser(user.id)} className="bg-red-500 text-white py-2 px-4 rounded">
-//               Delete User
-//             </button>
-//           </div>
-//         ))}
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default UserInterface;
-
-
-// import React, { useState, useEffect } from 'react';
-// import axios from 'axios';
-// import CardComponent from './CardComponent';
-
-// interface User {
-//   id: number;
-//   name: string;
-//   email: string;
-// }
-
-// interface UserInterfaceProps {
-//   backendName: string; // 'go'
-// }
-
-// const UserInterface: React.FC<UserInterfaceProps> = ({ backendName }) => {
-//   const apiUrl =
-//     process.env.NEXT_PUBLIC_API_URL ||
-//     'https://66dbf2c96722fdb9097e9de1_lb_705.bm-south.lab.poridhi.io/';
-//   const [users, setUsers] = useState<User[]>([]);
-//   const [newUser, setNewUser] = useState({ name: '', email: '' });
-//   const [updateUser, setUpdateUser] = useState({ id: '', name: '', email: '' });
-
-//   // Define styles based on the backend name
-//   const backgroundColors: { [key: string]: string } = {
-//     go: 'bg-cyan-500',
-//   };
-
-//   const buttonColors: { [key: string]: string } = {
-//     go: 'bg-cyan-700 hover:bg-blue-600',
-//   };
-
-//   const bgColor =
-//     backgroundColors[backendName as keyof typeof backgroundColors] ||
-//     'bg-gray-200';
-//   const btnColor =
-//     buttonColors[backendName as keyof typeof buttonColors] ||
-//     'bg-gray-500 hover:bg-gray-600';
-
-//   // Fetch all users
-//   useEffect(() => {
-//     const fetchData = async () => {
-//       try {
-//         const response = await axios.get(`${apiUrl}/api/${backendName}/users`);
-//         setUsers(response.data.reverse());
-//       } catch (error) {
-//         console.error('Error fetching data:', error);
-//       }
-//     };
-
-//     fetchData();
-//   }, [backendName, apiUrl]);
-
-//   // Create a new user
-//   const createUser = async (e: React.FormEvent<HTMLFormElement>) => {
-//     e.preventDefault();
-
-//     try {
-//       const response = await axios.post(
-//         `${apiUrl}/api/${backendName}/users`,
-//         newUser
-//       );
-//       setUsers([response.data, ...users]);
-//       setNewUser({ name: '', email: '' });
-//     } catch (error) {
-//       console.error('Error creating user:', error);
-//     }
-//   };
-
-//   // Update a user
-//   const handleUpdateUser = async (e: React.FormEvent<HTMLFormElement>) => {
-//     e.preventDefault();
-//     try {
-//       await axios.put(
-//         `${apiUrl}/api/${backendName}/users/${updateUser.id}`,
-//         { name: updateUser.name, email: updateUser.email }
-//       );
-//       setUpdateUser({ id: '', name: '', email: '' });
-//       setUsers(
-//         users.map((user) => {
-//           if (user.id === parseInt(updateUser.id)) {
-//             return { ...user, name: updateUser.name, email: updateUser.email };
-//           }
-//           return user;
-//         })
-//       );
-//     } catch (error) {
-//       console.error('Error updating user:', error);
-//     }
-//   };
-
-//   // Delete a user
-//   const deleteUser = async (userId: number) => {
-//     try {
-//       await axios.delete(`${apiUrl}/api/${backendName}/users/${userId}`);
-//       setUsers(users.filter((user) => user.id !== userId));
-//     } catch (error) {
-//       console.error('Error deleting user:', error);
-//     }
-//   };
-
-//   return (
-//     <div className={`user-interface ${bgColor} w-full max-w-md p-6 my-4 rounded-xl shadow-lg transition-transform transform hover:scale-105`}>
-//       <img
-//         src={`/${backendName}logo.svg`}
-//         alt={`${backendName} Logo`}
-//         className="w-24 h-24 mb-6 mx-auto"
-//       />
-//       <h2 className="text-2xl font-bold text-center text-white mb-6">
-//         {`${backendName.charAt(0).toUpperCase() + backendName.slice(1)} Backend`}
-//       </h2>
-
-//       {/* Create user */}
-//       <form onSubmit={createUser} className="mb-6 p-4 bg-blue-100 rounded-lg shadow-md transition-transform transform hover:scale-105">
-//         <input
-//           placeholder="Name"
-//           value={newUser.name}
-//           onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-//           className="mb-2 w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
-//         />
-//         <input
-//           placeholder="Email"
-//           value={newUser.email}
-//           onChange={(e) => setNewUser({ ...newUser, email: e.target.value })}
-//           className="mb-2 w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
-//         />
-//         <button
-//           type="submit"
-//           className="w-full p-2 text-white bg-cyan-600 rounded-lg shadow transition duration-200 hover:bg-cyan-500"
-//         >
-//           Add User
-//         </button>
-//       </form>
-
-//       {/* Update user */}
-//       <form onSubmit={handleUpdateUser} className="mb-6 p-4 bg-blue-100 rounded-lg shadow-md transition-transform transform hover:scale-105">
-//         <input
-//           placeholder="User Id"
-//           value={updateUser.id}
-//           onChange={(e) => setUpdateUser({ ...updateUser, id: e.target.value })}
-//           className="mb-2 w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
-//         />
-//         <input
-//           placeholder="New Name"
-//           value={updateUser.name}
-//           onChange={(e) => setUpdateUser({ ...updateUser, name: e.target.value })}
-//           className="mb-2 w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
-//         />
-//         <input
-//           placeholder="New Email"
-//           value={updateUser.email}
-//           onChange={(e) => setUpdateUser({ ...updateUser, email: e.target.value })}
-//           className="mb-2 w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-cyan-500"
-//         />
-//         <button
-//           type="submit"
-//           className="w-full p-2 text-white bg-green-600 rounded-lg shadow transition duration-200 hover:bg-green-500"
-//         >
-//           Update User
-//         </button>
-//       </form>
-
-//       {/* Display users */}
-//       <div className="space-y-4">
-//         {users.map((user) => (
-//           <div key={user.id} className="flex items-center justify-between bg-white p-4 rounded-lg shadow transition duration-200 hover:shadow-lg">
-//             <CardComponent card={user} />
-//             <button
-//               onClick={() => deleteUser(user.id)}
-//               className={`${btnColor} text-white py-2 px-4 rounded-lg shadow transition duration-200 hover:bg-red-600`}
-//             >
-//               Delete User
-//             </button>
-//           </div>
-//         ))}
-//       </div>
-//     </div>
-//   );
-// };
-
-// export default UserInterface;
 
 
 
