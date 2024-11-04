@@ -12,11 +12,13 @@ interface CardComponentProps {
 }
 
 const CardComponent: React.FC<CardComponentProps> = ({ card }) => {
+  if (!card) return null;
+  
   return (
     <div className="flex flex-col p-4 bg-white shadow rounded">
-      <p>Id: {card.id}</p>
-      <p>Name: {card.name}</p>
-      <p>Email: {card.email}</p>
+      <p>Id: {card.id || 'N/A'}</p>
+      <p>Name: {card.name || 'N/A'}</p>
+      <p>Email: {card.email || 'N/A'}</p>
     </div>
   );
 };
