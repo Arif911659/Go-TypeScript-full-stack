@@ -1,0 +1,118 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nextapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nextapp
+  template:
+    metadata:
+      labels:
+        app: nextapp
+    spec:
+      containers:
+        - name: nextapp
+          image: arifhossaincse22/go-fullstack-nextjs-postgresql:nextapp-v1
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "http://goapp:8000"  # Points to goapp service
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nextapp
+spec:
+  selector:
+    app: nextapp
+  ports:
+    - protocol: TCP
+      port: 3000
+      targetPort: 3000
+  type: LoadBalancer
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: goapp
+  template:
+    metadata:
+      labels:
+        app: goapp
+    spec:
+      containers:
+        - name: goapp
+          image: arifhossaincse22/go-fullstack-nextjs-postgresql:goapp-v1
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              value: "postgres://postgres:postgres@db:5432/postgres?sslmode=disable"  # Points to db service
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: goapp
+spec:
+  selector:
+    app: goapp
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+      nodePort: 8000
+  type: ClusterIP
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+        - name: db
+          image: arifhossaincse22/go-fullstack-nextjs-postgresql:db-v13
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: "postgres"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+spec:
+  selector:
+    app: db
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+      nodePort: 5432
+  type: ClusterIP

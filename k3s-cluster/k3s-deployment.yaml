@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fullstack-app
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goapp
+  namespace: fullstack-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: goapp
+  template:
+    metadata:
+      labels:
+        app: goapp
+    spec:
+      containers:
+      - name: goapp
+        image: arifhossaincse22/goapp:v2.0.0
+        ports:
+        - containerPort: 8000
+        env:
+        - name: DATABASE_URL
+          value: "postgres://postgres:postgres@db:5432/postgres?sslmode=disable"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: goapp-service
+  namespace: fullstack-app
+spec:
+  selector:
+    app: goapp
+  ports:
+  - protocol: TCP
+    port: 8000
+    targetPort: 8000
+  type: LoadBalancer
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+  namespace: fullstack-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
+      - name: db
+        image: postgres:13
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        - name: POSTGRES_DB
+          value: "postgres"
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: pgdata
+      volumes:
+      - name: pgdata
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-service
+  namespace: fullstack-app
+spec:
+  selector:
+    app: db
+  ports:
+  - protocol: TCP
+    port: 5432
+    targetPort: 5432
+  clusterIP: None  # Use a headless service for direct pod-to-pod communication

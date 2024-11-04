@@ -1,0 +1,408 @@
+Complete K3s Deployment Configuration
+=====================================
+
+# postgres-configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: postgres-config
+  namespace: fullstack-app
+data:
+  POSTGRES_DB: postgres
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: postgres
+---
+# postgres-pvc.yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+  namespace: fullstack-app
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+# postgres-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: fullstack-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:13
+          imagePullPolicy: "IfNotPresent"
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - configMapRef:
+                name: postgres-config
+          volumeMounts:
+            - mountPath: /var/lib/postgresql/data
+              name: postgresdb
+      volumes:
+        - name: postgresdb
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+---
+# postgres-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: fullstack-app
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+# backend-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: fullstack-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+        - name: backend
+          image: arifhossaincse22/go-fullstack-nextjs-postgresql:goapp-v1
+          ports:
+            - containerPort: 8000
+          env:
+            - name: DATABASE_URL
+              value: "postgres://postgres:postgres@postgres:5432/postgres?sslmode=disable"
+          livenessProbe:
+            httpGet:
+              path: /api/go/users
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /api/go/users
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+# backend-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: fullstack-app
+spec:
+  selector:
+    app: backend
+  ports:
+    - port: 8000
+      targetPort: 8000
+  type: ClusterIP
+---
+# frontend-deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: fullstack-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: nextapp:latest
+          imagePullPolicy: Never  # Assuming local image
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NEXT_PUBLIC_API_URL
+              value: "http://backend:8000"
+---
+# frontend-service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: fullstack-app
+spec:
+  selector:
+    app: frontend
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: ClusterIP
+---
+# ingress.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fullstack-ingress
+  namespace: fullstack-app
+  annotations:
+    kubernetes.io/ingress.class: "traefik"
+spec:
+  rules:
+    - host: app.your-domain.com  # Replace with your domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 3000
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8000
+---
+# namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fullstack-app
+
+=====================================
+=====================================
+
+First, create a script to apply all the manifests in the correct order:
+=====================================
+Deployment Script
+=====================================
+#!/bin/bash
+
+# Create namespace first
+kubectl apply -f namespace.yaml
+
+# Wait for namespace to be created
+sleep 5
+
+# Create ConfigMap and PVC for PostgreSQL
+kubectl apply -f postgres-configmap.yaml
+kubectl apply -f postgres-pvc.yaml
+
+# Deploy PostgreSQL
+kubectl apply -f postgres-deployment.yaml
+kubectl apply -f postgres-service.yaml
+
+# Wait for PostgreSQL to be ready
+echo "Waiting for PostgreSQL to be ready..."
+kubectl wait --namespace fullstack-app \
+  --for=condition=ready pod \
+  --selector=app=postgres \
+  --timeout=300s
+
+# Deploy Backend
+kubectl apply -f backend-deployment.yaml
+kubectl apply -f backend-service.yaml
+
+# Wait for Backend to be ready
+echo "Waiting for Backend to be ready..."
+kubectl wait --namespace fullstack-app \
+  --for=condition=ready pod \
+  --selector=app=backend \
+  --timeout=300s
+
+# Deploy Frontend
+kubectl apply -f frontend-deployment.yaml
+kubectl apply -f frontend-service.yaml
+
+# Finally, deploy Ingress
+kubectl apply -f ingress.yaml
+
+# Check deployment status
+echo "Checking deployment status..."
+kubectl get all -n fullstack-app
+
+=====================================
+=====================================
+
+Make sure to have these prerequisites:
+=====================================
+Setup Instructions
+=====================================
+# Prerequisites
+1. k3s installed on your server
+2. kubectl configured to access your k3s cluster
+3. Docker images ready:
+   - Frontend image built and available
+   - Backend image pushed to Docker Hub
+   - Postgres image will be pulled from Docker Hub
+
+# Setup Steps
+
+1. Create a directory for your k8s manifests:
+```bash
+mkdir k8s-manifests
+cd k8s-manifests
+```
+
+2. Save all the YAML files in this directory.
+
+3. Update the following values in the manifests:
+   - In ingress.yaml: Replace `app.your-domain.com` with your actual domain
+   - In frontend-deployment.yaml: Update the image name if different
+   - In backend-deployment.yaml: Verify the image name is correct
+
+4. Make the deployment script executable:
+```bash
+chmod +x deploy.sh
+```
+
+5. Run the deployment:
+```bash
+./deploy.sh
+```
+
+# Verify the Deployment
+
+1. Check all resources:
+```bash
+kubectl get all -n fullstack-app
+```
+
+2. Check the logs:
+```bash
+# For backend pods
+kubectl logs -n fullstack-app -l app=backend
+
+# For frontend pods
+kubectl logs -n fullstack-app -l app=frontend
+
+# For postgres pod
+kubectl logs -n fullstack-app -l app=postgres
+```
+
+3. Check the ingress:
+```bash
+kubectl get ingress -n fullstack-app
+```
+
+# Accessing the Application
+
+1. Make sure your domain's DNS is pointing to your k3s server's IP address
+
+2. Access the application:
+   - Frontend: https://app.your-domain.com
+   - Backend API: https://app.your-domain.com/api/go/users
+
+# Troubleshooting
+
+1. If pods are not starting, check the events:
+```bash
+kubectl get events -n fullstack-app
+```
+
+2. For specific pod logs:
+```bash
+kubectl describe pod <pod-name> -n fullstack-app
+```
+
+3. To check connectivity between services:
+```bash
+# Get into a pod
+kubectl exec -it <pod-name> -n fullstack-app -- /bin/sh
+
+# Test connectivity
+wget -qO- http://backend:8000/api/go/users
+```
+
+# Scaling
+
+To scale the deployments:
+```bash
+# Scale frontend
+kubectl scale deployment frontend -n fullstack-app --replicas=3
+
+# Scale backend
+kubectl scale deployment backend -n fullstack-app --replicas=3
+```
+=====================================
+=====================================
+To add data to the PostgreSQL database running inside the postgres-5d988f5994-x45rn pod, you can follow these steps:
+
+1. Access the PostgreSQL Pod
+First, access the PostgreSQL pod using kubectl exec:
+
+
+kubectl exec -it postgres-5d988f5994-x45rn -n fullstack-app -- psql -U postgres
+
+Here:
+
+-it makes the session interactive.
+-n fullstack-app specifies the namespace (replace fullstack-app if needed).
+-U postgres specifies the PostgreSQL user.
+This command will open the PostgreSQL interactive terminal.
+
+2. Create a Table and Insert Data
+Once you're inside the PostgreSQL interactive terminal (psql), you can create a table and insert data. For example:
+
+
+-- Create a table
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50),
+    email VARCHAR(50)
+);
+
+-- Insert data
+INSERT INTO users (name, email) VALUES ('John Doe', 'john@example.com');
+INSERT INTO users (name, email) VALUES ('Jane Smith', 'jane@example.com');
+
+3. Verify the Data
+To check that the data has been inserted successfully, you can query the table:
+
+SELECT * FROM users;
+
+4. Exit the PostgreSQL Terminal
+Once you're done, exit the PostgreSQL terminal by typing:
+
+
+\q
+
+Alternative: Run a SQL Script
+If you have a SQL file (e.g., init.sql) with the required data, you can copy it to the pod and execute it as follows:
+
+Copy the SQL file into the pod:
+
+kubectl cp init.sql fullstack-app/postgres-5d988f5994-x45rn:/init.sql
+
+Execute the SQL file:
+
+kubectl exec -it postgres-5d988f5994-x45rn -n fullstack-app -- psql -U postgres -f /init.sql
+
+This approach allows you to populate the database in the pod with predefined data from a SQL script.

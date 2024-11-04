@@ -1,0 +1,42 @@
+version: '3.7'
+services:
+  nextapp:
+    container_name: nextapp
+    image: arifhossaincse22/nextapp:v2.0.0
+    build:
+      context: ./frontend
+      dockerfile: next.dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=https://66dbf2c96722fdb9097e9de1_lb_705.bm-south.lab.poridhi.io/      #http://localhost:8000
+    # depends_on:
+    #   - goapp
+
+#   goapp:
+#     container_name: goapp
+#     image: arifhossaincse22/goapp:v2.0.0
+#     build:
+#       context: ./backend
+#       dockerfile: go.dockerfile
+#     environment:
+#       DATABASE_URL: 'postgres://postgres:postgres@db:5432/postgres?sslmode=disable'
+#     ports:
+#       - '8000:8000'
+#     depends_on:
+#       - db
+#   db:
+#     container_name: db
+#     image: postgres:13
+#     restart: always
+#     environment:
+#       POSTGRES_USER: postgres
+#       POSTGRES_PASSWORD: postgres
+#       POSTGRES_DB: postgres
+#     ports:
+#       - 5432:5432
+#     volumes:
+#       - pgdata:/var/lib/postgresql/data
+
+# volumes:
+#   pgdata:
